@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yuetiku.mapper.StatisticsMapper">
+
+    <!-- 获取用户统计概览 -->
+    <select id="getUserOverview" resultType="com.yuetiku.entity.StatisticsOverview">
+        SELECT *
+        FROM user_statistics
+        WHERE user_id = #{userId} AND category_id IS NULL
+    </select>
+
+    <!-- 获取用户分类统计 -->
+    <select id="getUserCategoryStatistics" resultType="com.yuetiku.entity.StatisticsOverview">
+        SELECT 
+            us.*, 
+            c.name as category_name,
+            COALESCE(today.today_questions, 0) as today_questions,
+            COALESCE(week.week_questions, 0) as week_questions,
+            COALESCE(month.month_questions, 0) as month_questions
+        FROM user_statistics us
+        LEFT JOIN categories c ON us.category_id = c.id
+        LEFT JOIN (
+            SELECT 
+                q.category_id,
+                COUNT(*) as today_questions
+            FROM user_answers ua
+            LEFT JOIN questions q ON ua.question_id = q.id
+            WHERE ua.user_id = #{userId} AND DATE(ua.answer_time) = CURDATE()
+            GROUP BY q.category_id
+        ) today ON us.category_id = today.category_id
+        LEFT JOIN (
+            SELECT 
+                q.category_id,
+                COUNT(*) as week_questions
+            FROM user_answers ua
+            LEFT JOIN questions q ON ua.question_id = q.id
+            WHERE ua.user_id = #{userId} AND YEARWEEK(ua.answer_time, 1) = YEARWEEK(CURDATE(), 1)
+            GROUP BY q.category_id
+        ) week ON us.category_id = week.category_id
+        LEFT JOIN (
+            SELECT 
+                q.category_id,
+                COUNT(*) as month_questions
+            FROM user_answers ua
+            LEFT JOIN questions q ON ua.question_id = q.id
+            WHERE ua.user_id = #{userId} 
+            AND YEAR(ua.answer_time) = YEAR(CURDATE()) 
+            AND MONTH(ua.answer_time) = MONTH(CURDATE())
+            GROUP BY q.category_id
+        ) month ON us.category_id = month.category_id
+        WHERE us.user_id = #{userId} AND us.category_id IS NOT NULL
+        ORDER BY us.updated_at DESC
+    </select>
+
+    <!-- 获取时间线统计 -->
+    <select id="getTimelineStatistics" resultType="com.yuetiku.entity.StatisticsOverview">
+        WITH RECURSIVE consecutive_days AS (
+            SELECT 
+                DATE(answer_time) as answer_date,
+                1 as consecutive_count
+            FROM user_answers
+            WHERE user_id = #{userId}
+            AND DATE(answer_time) = (
+                SELECT MAX(DATE(answer_time)) 
+                FROM user_answers 
+                WHERE user_id = #{userId}
+            )
+            
+            UNION ALL
+            
+            SELECT 
+                DATE(ua.answer_time) as answer_date,
+                cd.consecutive_count + 1
+            FROM user_answers ua
+            JOIN consecutive_days cd ON DATE(ua.answer_time) = DATE_SUB(cd.answer_date, INTERVAL 1 DAY)
+            WHERE ua.user_id = #{userId}
+        ),
+        consecutive_days_dedup AS (
+            SELECT 
+                answer_date,
+                MAX(consecutive_count) as consecutive_count
+            FROM consecutive_days
+            GROUP BY answer_date
+        ),
+        timeline_data AS (
+            SELECT 
+                DATE(ua.answer_time) as answer_date,
+                COUNT(*) as total_questions,
+                SUM(CASE WHEN ua.is_correct = 1 THEN 1 ELSE 0 END) as correct_answers,
+                SUM(ua.score) as total_score,
+                ROUND(SUM(CASE WHEN ua.is_correct = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as accuracy_rate,
+                COUNT(*) * 2 as study_minutes
+            FROM user_answers ua
+            WHERE ua.user_id = #{userId}
+            AND DATE(ua.answer_time) BETWEEN #{startDate} AND #{endDate}
+            GROUP BY DATE(ua.answer_time)
+        )
+        SELECT 
+            td.*,
+            COALESCE(cdd.consecutive_count, 0) as consecutive_days
+        FROM timeline_data td
+        LEFT JOIN consecutive_days_dedup cdd ON td.answer_date = cdd.answer_date
+        ORDER BY td.answer_date DESC
+    </select>
+
+
+    <!-- 获取今日答题数 -->
+    <select id="getTodayQuestions" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM user_answers
+        WHERE user_id = #{userId}
+        AND DATE(answer_time) = CURDATE()
+    </select>
+
+    <!-- 获取本周答题数 -->
+    <select id="getWeekQuestions" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM user_answers
+        WHERE user_id = #{userId}
+        AND YEARWEEK(answer_time, 1) = YEARWEEK(CURDATE(), 1)
+    </select>
+
+    <!-- 获取本月答题数 -->
+    <select id="getMonthQuestions" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM user_answers
+        WHERE user_id = #{userId}
+        AND YEAR(answer_time) = YEAR(CURDATE())
+        AND MONTH(answer_time) = MONTH(CURDATE())
+    </select>
+
+    <!-- 获取连续答题天数 -->
+    <select id="getConsecutiveDays" resultType="java.lang.Integer">
+        WITH RECURSIVE consecutive_days AS (
+            SELECT 
+                DATE(answer_time) as answer_date,
+                1 as consecutive_count
+            FROM user_answers
+            WHERE user_id = #{userId}
+            AND DATE(answer_time) = CURDATE()
+            
+            UNION ALL
+            
+            SELECT 
+                DATE(ua.answer_time) as answer_date,
+                cd.consecutive_count + 1
+            FROM user_answers ua
+            JOIN consecutive_days cd ON DATE(ua.answer_time) = DATE_SUB(cd.answer_date, INTERVAL 1 DAY)
+            WHERE ua.user_id = #{userId}
+        )
+        SELECT COALESCE(MAX(consecutive_count), 0)
+        FROM consecutive_days
+    </select>
+
+</mapper>
