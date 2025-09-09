@@ -161,6 +161,27 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
     }
 
     @Override
+    public Category getCategoryById(Long id) {
+        // 获取当前用户ID
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+
+        // 根据ID和用户ID查询分类
+        LambdaQueryWrapper<Category> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(Category::getId, id)
+                .eq(Category::getUserId, currentUserId);
+        Category category = getOne(queryWrapper);
+        
+        if (category == null) {
+            throw new RuntimeException("分类不存在");
+        }
+        
+        return category;
+    }
+
+    @Override
     public List<Category> getCategoryTree() {
         // 获取当前用户ID
         Long currentUserId = BaseContext.getCurrentId();
@@ -168,14 +189,14 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
             throw new RuntimeException("用户未登录");
         }
 
-        // 获取当前用户的所有分类
+        // 获取当前用户的所有分类（包括顶级分类和子分类）
         LambdaQueryWrapper<Category> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Category::getUserId, currentUserId)
                 .orderByAsc(Category::getSortOrder, Category::getId);
         List<Category> allCategories = list(queryWrapper);
         
-        // 构建树形结构
-        return buildCategoryTree(allCategories, 0L);
+        // 直接返回所有分类的扁平化列表，让前端处理树形结构
+        return allCategories;
     }
 
     @Override
@@ -194,15 +215,36 @@ public class CategoryServiceImpl extends ServiceImpl<CategoryMapper, Category> i
     }
 
     /**
+     * 获取真正的树形结构分类（顶级分类包含子分类）
+     */
+    public List<Category> getCategoryTreeWithChildren() {
+        // 获取当前用户ID
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+
+        // 获取当前用户的所有分类
+        LambdaQueryWrapper<Category> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(Category::getUserId, currentUserId)
+                .orderByAsc(Category::getSortOrder, Category::getId);
+        List<Category> allCategories = list(queryWrapper);
+        
+        // 构建树形结构
+        return buildCategoryTree(allCategories, 0L);
+    }
+
+    /**
      * 构建分类树形结构
      */
     private List<Category> buildCategoryTree(List<Category> allCategories, Long parentId) {
         return allCategories.stream()
                 .filter(category -> category.getParentId().equals(parentId))
                 .peek(category -> {
+                    // 递归获取子分类
                     List<Category> children = buildCategoryTree(allCategories, category.getId());
-                    // 这里可以设置children属性，但Category实体类中没有children字段
-                    // 如果需要树形结构，可以创建一个包含children的DTO类
+                    // 设置子分类列表
+                    category.setChildren(children);
                 })
                 .toList();
     }

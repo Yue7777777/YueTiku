@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 题目分类实体类
@@ -64,4 +65,10 @@ public class Category {
      */
     @TableField("created_at")
     private LocalDateTime createdAt;
+
+    /**
+     * 子分类列表（不存储在数据库中）
+     */
+    @TableField(exist = false)
+    private List<Category> children;
 }

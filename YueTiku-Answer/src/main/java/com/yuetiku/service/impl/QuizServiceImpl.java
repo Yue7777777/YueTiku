@@ -49,9 +49,16 @@ public class QuizServiceImpl implements QuizService {
     public QuizQuestionResponse getRandomQuestion(Long categoryId, String difficulty, Integer count) {
         log.info("获取随机题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
+        // 获取当前用户ID
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+        
         // 构建查询条件
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Question::getStatus, 1); // 只获取正常状态的题目
+        queryWrapper.eq(Question::getStatus, 1) // 只获取正常状态的题目
+                   .eq(Question::getCreatedBy, currentUserId); // 只获取当前用户创建的题目
         
         if (categoryId != null) {
             queryWrapper.eq(Question::getCategoryId, categoryId);
@@ -87,10 +94,17 @@ public class QuizServiceImpl implements QuizService {
     public QuizQuestionResponse getQuestionByCategory(Long categoryId, String difficulty, Integer count) {
         log.info("按分类获取题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
+        // 获取当前用户ID
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+        
         // 构建查询条件
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(Question::getCategoryId, categoryId)
-                   .eq(Question::getStatus, 1);
+                   .eq(Question::getStatus, 1)
+                   .eq(Question::getCreatedBy, currentUserId); // 只获取当前用户创建的题目
         
         if (difficulty != null) {
             queryWrapper.eq(Question::getDifficulty, difficulty);

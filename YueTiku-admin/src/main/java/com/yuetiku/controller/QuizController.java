@@ -56,7 +56,7 @@ public class QuizController {
     public Result<QuizQuestionResponse> getQuestionByCategory(
             @PathVariable Long categoryId,
             @RequestParam(required = false) String difficulty,
-            @RequestParam(defaultValue = "1") Integer count) {
+            @RequestParam(defaultValue = "100") Integer count) {
         log.info("按分类获取题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
         QuizQuestionResponse question = quizService.getQuestionByCategory(categoryId, difficulty, count);

@@ -37,6 +37,14 @@ public interface CategoryService extends IService<Category> {
     boolean deleteCategory(Long id);
 
     /**
+     * 根据ID获取分类详情
+     *
+     * @param id 分类ID
+     * @return 分类详情
+     */
+    Category getCategoryById(Long id);
+
+    /**
      * 获取分类树形结构
      *
      * @return 分类树

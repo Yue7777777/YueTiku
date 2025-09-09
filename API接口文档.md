@@ -206,7 +206,7 @@ Authorization: Bearer <accessToken>
 Authorization: Bearer <accessToken>
 ```
 
-**功能说明**: 获取当前登录用户的所有分类，以树形结构返回
+**功能说明**: 获取当前登录用户的所有分类，返回扁平化的分类列表（包括顶级分类和子分类）
 
 **响应示例**:
 ```json
@@ -222,14 +222,70 @@ Authorization: Bearer <accessToken>
       "sortOrder": 1,
       "status": 1,
       "userId": 1,
-      "createdAt": "2024-01-01T10:00:00"
+      "createdAt": "2024-01-01T10:00:00",
+      "children": null
+    },
+    {
+      "id": 2,
+      "parentId": 1,
+      "name": "Java语法",
+      "description": "Java语法相关题目",
+      "sortOrder": 1,
+      "status": 1,
+      "userId": 1,
+      "createdAt": "2024-01-01T10:00:00",
+      "children": null
+    },
+    {
+      "id": 3,
+      "parentId": 1,
+      "name": "Java集合",
+      "description": "Java集合框架",
+      "sortOrder": 2,
+      "status": 1,
+      "userId": 1,
+      "createdAt": "2024-01-01T10:00:00",
+      "children": null
     }
   ],
   "timestamp": 1640995200000
 }
 ```
 
-### 2. 获取子分类列表
+### 2. 根据ID获取分类详情
+
+**接口地址**: `GET /categories/{id}`
+
+**请求参数**:
+- `id`: 分类ID（路径参数）
+
+**请求头**:
+```
+Authorization: Bearer <accessToken>
+```
+
+**功能说明**: 根据分类ID获取当前登录用户的分类详情
+
+**响应示例**:
+```json
+{
+  "code": 200,
+  "message": "获取分类详情成功",
+  "data": {
+    "id": 1,
+    "parentId": 0,
+    "name": "Java基础",
+    "description": "Java基础知识",
+    "sortOrder": 1,
+    "status": 1,
+    "userId": 1,
+    "createdAt": "2024-01-01T10:00:00"
+  },
+  "timestamp": 1640995200000
+}
+```
+
+### 3. 获取子分类列表
 
 **接口地址**: `GET /categories/children?parentId={parentId}`
 
@@ -259,7 +315,7 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-### 3. 创建分类
+### 4. 创建分类
 
 **接口地址**: `POST /categories`
 
@@ -295,7 +351,7 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-### 4. 更新分类
+### 5. 更新分类
 
 **接口地址**: `PUT /categories/{id}`
 
@@ -331,7 +387,7 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-### 5. 删除分类
+### 6. 删除分类
 
 **接口地址**: `DELETE /categories/{id}`
 
