@@ -75,6 +75,19 @@ public class CategoryController {
     }
 
     /**
+     * 根据ID获取分类详情
+     *
+     * @param id 分类ID
+     * @return 分类详情
+     */
+    @GetMapping("/{id}")
+    public Result<Category> getCategoryById(@PathVariable Long id) {
+        log.info("获取当前用户分类详情，ID: {}", id);
+        Category category = categoryService.getCategoryById(id);
+        return Result.success("获取分类详情成功", category);
+    }
+
+    /**
      * 删除分类
      *
      * @param id 分类ID
