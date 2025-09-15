@@ -57,6 +57,11 @@
         </dependency>
 
         <dependency>
+            <groupId>com.openai</groupId>
+            <artifactId>openai-java</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com</groupId>
             <artifactId>YueTiku-User</artifactId>
             <version>3.5.5</version>
@@ -78,5 +83,30 @@
             <version>3.5.5</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com</groupId>
+            <artifactId>YueTiKu-Ai</artifactId>
+            <version>3.5.5</version>
+        </dependency>
     </dependencies>
+
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 </project>

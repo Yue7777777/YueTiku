@@ -25,6 +25,7 @@
     <properties>
         <java.version>17</java.version>
         <spring-ai.version>1.0.1</spring-ai.version>
+        <spring-ai-alibaba-version>1.0.0.2</spring-ai-alibaba-version>
         <lombok>1.18.30</lombok>
         <mysql-connector>8.0.33</mysql-connector>
         <mybatis>3.0.3</mybatis>
@@ -32,6 +33,7 @@
         <jwt>0.11.5</jwt>
         <spring-ai.version>1.0.0</spring-ai.version>
         <ibatis-sqlmap>2.3.4.726</ibatis-sqlmap>
+        <openai-sdk>0.32.0</openai-sdk>
     </properties>
 
 
@@ -123,6 +125,20 @@
                 <groupId>io.jsonwebtoken</groupId>
                 <artifactId>jjwt-jackson</artifactId>
                 <version>${jwt}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.openai</groupId>
+                <artifactId>openai-java</artifactId>
+                <version>${openai-sdk}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba.cloud.ai</groupId>
+                <artifactId>spring-ai-alibaba-bom</artifactId>
+                <version>${spring-ai-alibaba-version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <dependency>
