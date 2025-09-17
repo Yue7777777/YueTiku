@@ -34,6 +34,7 @@
         <spring-ai.version>1.0.0</spring-ai.version>
         <ibatis-sqlmap>2.3.4.726</ibatis-sqlmap>
         <openai-sdk>0.32.0</openai-sdk>
+        <dashscope-sdk>2.21.8</dashscope-sdk>
     </properties>
 
 
@@ -131,6 +132,12 @@
                 <groupId>com.openai</groupId>
                 <artifactId>openai-java</artifactId>
                 <version>${openai-sdk}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>dashscope-sdk-java</artifactId>
+                <version>${dashscope-sdk}</version>
             </dependency>
 
             <dependency>
