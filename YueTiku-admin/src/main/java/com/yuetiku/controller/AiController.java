@@ -11,9 +11,13 @@ import com.openai.client.OpenAIClient;
 import com.openai.models.FileCreateParams;
 import com.openai.models.FileObject;
 import com.openai.models.FilePurpose;
+import com.yuetiku.common.Result;
+import com.yuetiku.context.AiJsonContext;
+import com.yuetiku.vo.AiQuestionVo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,6 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
+import java.util.List;
 
 @RestController
 @Slf4j
@@ -31,7 +36,7 @@ public class AiController {
     private final OpenAIClient openAIClient;
 
     @PostMapping("/file")
-    public String getfile(@RequestParam("file") MultipartFile file) {
+    public Result<List<AiQuestionVo>> getfile(@RequestParam("file") MultipartFile file) {
         try {
             // 2. 提取文件扩展名（作为临时文件后缀）
             String originalFilename = file.getOriginalFilename();
@@ -57,23 +62,14 @@ public class AiController {
 
                 String content = chatClient.prompt()
                         .system("fileid://" + fileId)
-                        .user("提取一下文档的的内容")
+                        .user(AiJsonContext.USER_TEXT)
                         .call()
                         .content();
-
-                log.info("content:{}", content);
 
                 //将文档分析提取加入到结构化输出的条件中
                 Message systemMsg = Message.builder()
                         .role(Role.SYSTEM.getValue())
-                        .content("""
-                                请你从用户给出的题目内容中提取出题目信息并返回一段严格的 JSON，包含以下字段：
-                                        - type（题目的类型，只能是single,multiple,fill,answer,judge中的一个）
-                                        - title（题目的标题，如果没有就填相应题型的中文,如single对应单选题）
-                                        - content（题目的问题部分,选择题不包括选项）
-                                        - explanation（题目的解析部分，如果没有你就自己根据题目的问题部分给出解析）
-                                        - difficulty（题目的难度,必需是easy,medium,hard中的一个，如果没有就默认medium）
-                                """)
+                        .content(AiJsonContext.CONTEXT)
                         .build();
 
                 Message userMsg = Message.builder()
@@ -93,13 +89,19 @@ public class AiController {
                 //提取信息
                 GenerationResult call = gen.call(param);
                 String result = call.getOutput().getChoices().get(0).getMessage().getContent();
-                return result;
+
+                //转为json
+                BeanOutputConverter<AiQuestionVo[]> outputConverter = new BeanOutputConverter<>(AiQuestionVo[].class);
+                AiQuestionVo[] convert = outputConverter.convert(result);
+                List<AiQuestionVo> question = Arrays.asList(convert);
+
+                return Result.success(question);
             }finally {
                 Files.delete(tempFile);
             }
         } catch (Exception e) {
             log.error("处理文件失败", e);
-            return "处理文件失败";
+            return Result.error("处理文件失败");
         }
     }
 }

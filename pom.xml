@@ -35,6 +35,7 @@
         <ibatis-sqlmap>2.3.4.726</ibatis-sqlmap>
         <openai-sdk>0.32.0</openai-sdk>
         <dashscope-sdk>2.21.8</dashscope-sdk>
+        <jsonschema-generator>4.37.0</jsonschema-generator>
     </properties>
 
 
@@ -138,6 +139,13 @@
                 <groupId>com.alibaba</groupId>
                 <artifactId>dashscope-sdk-java</artifactId>
                 <version>${dashscope-sdk}</version>
+            </dependency>
+
+            <!--解决jsonschema-generator版本冲突-->
+            <dependency>
+                <groupId>com.github.victools</groupId>
+                <artifactId>jsonschema-generator</artifactId>
+                <version>${jsonschema-generator}</version>
             </dependency>
 
             <dependency>
