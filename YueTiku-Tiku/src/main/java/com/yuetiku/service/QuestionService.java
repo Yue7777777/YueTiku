@@ -80,4 +80,35 @@ public interface QuestionService extends IService<Question> {
      * @return 题目列表
      */
     com.baomidou.mybatisplus.core.metadata.IPage<Question> getCurrentUserQuestions(Integer page, Integer size, Long categoryId, String type, String difficulty);
+
+    /**
+     * 批量导入题目
+     *
+     * @param questions 题目请求列表
+     * @return 导入结果统计
+     */
+    BatchImportResult batchImportQuestions(List<QuestionRequest> questions);
+
+    /**
+     * 批量导入结果
+     */
+    class BatchImportResult {
+        private int totalCount;
+        private int successCount;
+        private int failureCount;
+
+        public BatchImportResult(int totalCount, int successCount, int failureCount) {
+            this.totalCount = totalCount;
+            this.successCount = successCount;
+            this.failureCount = failureCount;
+        }
+
+        // getters and setters
+        public int getTotalCount() { return totalCount; }
+        public void setTotalCount(int totalCount) { this.totalCount = totalCount; }
+        public int getSuccessCount() { return successCount; }
+        public void setSuccessCount(int successCount) { this.successCount = successCount; }
+        public int getFailureCount() { return failureCount; }
+        public void setFailureCount(int failureCount) { this.failureCount = failureCount; }
+    }
 }

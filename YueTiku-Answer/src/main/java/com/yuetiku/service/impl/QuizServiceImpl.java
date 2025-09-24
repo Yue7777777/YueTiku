@@ -6,6 +6,8 @@ import com.yuetiku.dto.QuizAnswerRequest;
 import com.yuetiku.dto.QuizAnswerResponse;
 import com.yuetiku.dto.QuizHistoryResponse;
 import com.yuetiku.dto.QuizQuestionResponse;
+import com.yuetiku.dto.QuizQuestionsResponse;
+import com.yuetiku.dto.QuizQuestionWithJoinsDto;
 import com.yuetiku.entity.Category;
 import com.yuetiku.entity.Question;
 import com.yuetiku.entity.QuestionAnswer;
@@ -27,8 +29,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
+import java.util.stream.Collectors;
 
 /**
  * 答题服务实现类
@@ -46,7 +51,7 @@ public class QuizServiceImpl implements QuizService {
     private final UserStatisticsMapper userStatisticsMapper;
 
     @Override
-    public QuizQuestionResponse getRandomQuestion(Long categoryId, String difficulty, Integer count) {
+    public QuizQuestionsResponse getRandomQuestion(Long categoryId, String difficulty, Integer count) {
         log.info("获取随机题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
         // 获取当前用户ID
@@ -55,43 +60,20 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("用户未登录");
         }
         
-        // 构建查询条件
-        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Question::getStatus, 1) // 只获取正常状态的题目
-                   .eq(Question::getCreatedBy, currentUserId); // 只获取当前用户创建的题目
+        // 使用JOIN查询一次性获取所有相关数据
+        List<QuizQuestionWithJoinsDto> joinResults = questionMapper.getRandomQuestionsWithJoins(
+                currentUserId, categoryId, difficulty, count);
         
-        if (categoryId != null) {
-            queryWrapper.eq(Question::getCategoryId, categoryId);
-        }
-        
-        if (difficulty != null) {
-            queryWrapper.eq(Question::getDifficulty, difficulty);
-        }
-        
-        // 获取所有符合条件的题目
-        List<Question> allQuestions = questionMapper.selectList(queryWrapper);
-        
-        if (allQuestions.isEmpty()) {
+        if (joinResults.isEmpty()) {
             throw new RuntimeException("没有找到符合条件的题目");
         }
         
-        // 随机选择题目
-        Random random = new Random();
-        List<Question> selectedQuestions = new ArrayList<>();
-        int actualCount = Math.min(count, allQuestions.size());
-        
-        for (int i = 0; i < actualCount; i++) {
-            int randomIndex = random.nextInt(allQuestions.size());
-            selectedQuestions.add(allQuestions.get(randomIndex));
-            allQuestions.remove(randomIndex); // 避免重复选择
-        }
-        
         // 构建响应
-        return buildQuizQuestionResponse(selectedQuestions);
+        return buildQuizQuestionsResponseFromJoins(joinResults);
     }
 
     @Override
-    public QuizQuestionResponse getQuestionByCategory(Long categoryId, String difficulty, Integer count) {
+    public QuizQuestionsResponse getQuestionByCategory(Long categoryId, String difficulty, Integer count) {
         log.info("按分类获取题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
         // 获取当前用户ID
@@ -100,36 +82,16 @@ public class QuizServiceImpl implements QuizService {
             throw new RuntimeException("用户未登录");
         }
         
-        // 构建查询条件
-        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Question::getCategoryId, categoryId)
-                   .eq(Question::getStatus, 1)
-                   .eq(Question::getCreatedBy, currentUserId); // 只获取当前用户创建的题目
+        // 使用JOIN查询一次性获取所有相关数据
+        List<QuizQuestionWithJoinsDto> joinResults = questionMapper.getRandomQuestionsWithJoins(
+                currentUserId, categoryId, difficulty, count);
         
-        if (difficulty != null) {
-            queryWrapper.eq(Question::getDifficulty, difficulty);
-        }
-        
-        // 获取题目列表
-        List<Question> questions = questionMapper.selectList(queryWrapper);
-        
-        if (questions.isEmpty()) {
+        if (joinResults.isEmpty()) {
             throw new RuntimeException("该分类下没有找到符合条件的题目");
         }
         
-        // 随机选择指定数量的题目
-        Random random = new Random();
-        List<Question> selectedQuestions = new ArrayList<>();
-        int actualCount = Math.min(count, questions.size());
-        
-        for (int i = 0; i < actualCount; i++) {
-            int randomIndex = random.nextInt(questions.size());
-            selectedQuestions.add(questions.get(randomIndex));
-            questions.remove(randomIndex);
-        }
-        
         // 构建响应
-        return buildQuizQuestionResponse(selectedQuestions);
+        return buildQuizQuestionsResponseFromJoins(joinResults);
     }
 
     @Override
@@ -249,26 +211,19 @@ public class QuizServiceImpl implements QuizService {
     }
 
     /**
-     * 构建答题题目响应
+     * 构建答题题目列表响应
      */
-    private QuizQuestionResponse buildQuizQuestionResponse(List<Question> questions) {
+    private QuizQuestionsResponse buildQuizQuestionsResponse(List<Question> questions) {
         if (questions.isEmpty()) {
             return null;
         }
         
-        Question firstQuestion = questions.get(0);
-        
-        QuizQuestionResponse response = new QuizQuestionResponse();
-        response.setId(firstQuestion.getId());
-        response.setCategoryId(firstQuestion.getCategoryId());
-        response.setType(firstQuestion.getType());
-        response.setTitle(firstQuestion.getTitle());
-        response.setContent(firstQuestion.getContent());
-        response.setDifficulty(firstQuestion.getDifficulty());
-        response.setPoints(firstQuestion.getPoints());
-        response.setSource(firstQuestion.getSource());
-        response.setTags(firstQuestion.getTags());
+        QuizQuestionsResponse response = new QuizQuestionsResponse();
         response.setCount(questions.size());
+        
+        // 获取第一道题目的分类信息
+        Question firstQuestion = questions.get(0);
+        response.setCategoryId(firstQuestion.getCategoryId());
         
         // 获取分类名称
         Category category = categoryMapper.selectById(firstQuestion.getCategoryId());
@@ -276,10 +231,142 @@ public class QuizServiceImpl implements QuizService {
             response.setCategoryName(category.getName());
         }
         
+        // 构建每道题目的响应
+        List<QuizQuestionResponse> questionResponses = new ArrayList<>();
+        for (Question question : questions) {
+            QuizQuestionResponse questionResponse = buildSingleQuestionResponse(question);
+            questionResponses.add(questionResponse);
+        }
+        
+        response.setQuestions(questionResponses);
+        
+        return response;
+    }
+    
+    /**
+     * 从JOIN查询结果构建答题题目列表响应
+     */
+    private QuizQuestionsResponse buildQuizQuestionsResponseFromJoins(List<QuizQuestionWithJoinsDto> joinResults) {
+        if (joinResults.isEmpty()) {
+            return null;
+        }
+        
+        // 按题目ID分组，因为JOIN查询会产生多行（每个选项一行）
+        Map<Long, List<QuizQuestionWithJoinsDto>> groupedResults = joinResults.stream()
+                .collect(Collectors.groupingBy(QuizQuestionWithJoinsDto::getId));
+        
+        QuizQuestionsResponse response = new QuizQuestionsResponse();
+        response.setCount(groupedResults.size());
+        
+        // 获取第一道题目的分类信息
+        QuizQuestionWithJoinsDto firstRecord = joinResults.get(0);
+        response.setCategoryId(firstRecord.getCategoryId());
+        response.setCategoryName(firstRecord.getCategoryName());
+        
+        // 构建每道题目的响应
+        List<QuizQuestionResponse> questionResponses = new ArrayList<>();
+        for (Map.Entry<Long, List<QuizQuestionWithJoinsDto>> entry : groupedResults.entrySet()) {
+            List<QuizQuestionWithJoinsDto> questionRecords = entry.getValue();
+            QuizQuestionResponse questionResponse = buildSingleQuestionResponseFromJoins(questionRecords);
+            questionResponses.add(questionResponse);
+        }
+        
+        response.setQuestions(questionResponses);
+        
+        return response;
+    }
+    
+    /**
+     * 从JOIN查询结果构建单道题目响应
+     */
+    private QuizQuestionResponse buildSingleQuestionResponseFromJoins(List<QuizQuestionWithJoinsDto> questionRecords) {
+        if (questionRecords.isEmpty()) {
+            return null;
+        }
+        
+        // 取第一条记录作为题目基本信息
+        QuizQuestionWithJoinsDto firstRecord = questionRecords.get(0);
+        
+        QuizQuestionResponse response = new QuizQuestionResponse();
+        response.setId(firstRecord.getId());
+        response.setCategoryId(firstRecord.getCategoryId());
+        response.setCategoryName(firstRecord.getCategoryName());
+        response.setType(firstRecord.getType());
+        response.setTitle(firstRecord.getTitle());
+        response.setContent(firstRecord.getContent());
+        response.setDifficulty(firstRecord.getDifficulty());
+        response.setPoints(firstRecord.getPoints());
+        response.setSource(firstRecord.getSource());
+        response.setTags(firstRecord.getTags());
+        response.setCount(1);
+        
+        // 构建选项列表
+        if ("single".equals(firstRecord.getType()) || "multiple".equals(firstRecord.getType())) {
+            // 选择题：从JOIN结果中获取选项
+            List<QuizQuestionResponse.QuizOptionResponse> optionResponses = questionRecords.stream()
+                    .filter(record -> record.getOptionId() != null) // 过滤掉没有选项的记录
+                    .map(record -> {
+                        QuizQuestionResponse.QuizOptionResponse optionResponse = new QuizQuestionResponse.QuizOptionResponse();
+                        optionResponse.setId(record.getOptionId());
+                        optionResponse.setOptionKey(record.getOptionKey());
+                        optionResponse.setOptionContent(record.getOptionContent());
+                        optionResponse.setSortOrder(record.getSortOrder());
+                        return optionResponse;
+                    })
+                    .distinct() // 去重，因为JOIN可能产生重复记录
+                    .sorted(Comparator.comparing(QuizQuestionResponse.QuizOptionResponse::getSortOrder)) // 按排序字段排序
+                    .collect(Collectors.toList());
+            response.setOptions(optionResponses);
+        } else if ("judge".equals(firstRecord.getType())) {
+            // 判断题：创建固定的选项
+            List<QuizQuestionResponse.QuizOptionResponse> optionResponses = new ArrayList<>();
+            
+            QuizQuestionResponse.QuizOptionResponse trueOption = new QuizQuestionResponse.QuizOptionResponse();
+            trueOption.setId(1L);
+            trueOption.setOptionKey("A");
+            trueOption.setOptionContent("正确");
+            trueOption.setSortOrder(1);
+            optionResponses.add(trueOption);
+            
+            QuizQuestionResponse.QuizOptionResponse falseOption = new QuizQuestionResponse.QuizOptionResponse();
+            falseOption.setId(2L);
+            falseOption.setOptionKey("B");
+            falseOption.setOptionContent("错误");
+            falseOption.setSortOrder(2);
+            optionResponses.add(falseOption);
+            
+            response.setOptions(optionResponses);
+        }
+        
+        return response;
+    }
+    
+    /**
+     * 构建单道题目响应
+     */
+    private QuizQuestionResponse buildSingleQuestionResponse(Question question) {
+        QuizQuestionResponse response = new QuizQuestionResponse();
+        response.setId(question.getId());
+        response.setCategoryId(question.getCategoryId());
+        response.setType(question.getType());
+        response.setTitle(question.getTitle());
+        response.setContent(question.getContent());
+        response.setDifficulty(question.getDifficulty());
+        response.setPoints(question.getPoints());
+        response.setSource(question.getSource());
+        response.setTags(question.getTags());
+        response.setCount(1);
+        
+        // 获取分类名称
+        Category category = categoryMapper.selectById(question.getCategoryId());
+        if (category != null) {
+            response.setCategoryName(category.getName());
+        }
+        
         // 如果是选择题，获取选项
-        if ("single".equals(firstQuestion.getType()) || "multiple".equals(firstQuestion.getType()) || "judge".equals(firstQuestion.getType())) {
+        if ("single".equals(question.getType()) || "multiple".equals(question.getType()) || "judge".equals(question.getType())) {
             LambdaQueryWrapper<QuestionOption> optionWrapper = new LambdaQueryWrapper<>();
-            optionWrapper.eq(QuestionOption::getQuestionId, firstQuestion.getId())
+            optionWrapper.eq(QuestionOption::getQuestionId, question.getId())
                         .orderByAsc(QuestionOption::getSortOrder);
             List<QuestionOption> options = questionOptionMapper.selectList(optionWrapper);
             

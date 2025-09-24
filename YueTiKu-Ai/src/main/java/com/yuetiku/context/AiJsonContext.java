@@ -2,33 +2,32 @@ package com.yuetiku.context;
 
 public class AiJsonContext {
     public static final String CONTEXT ="""
-            请你从用户给出的题目内容中提取出题目信息并返回一段严格的JSON格式，包含以下字段：
+            请你从用户给出的题目内容中提取出题目信息并按照指定的JSON Schema格式输出，输出格式要求如下：
             [
             {
-                "type"（题目的类型，只能是single,multiple,fill,answer,judge中的一个）
-                "title"（题目的标题，如果没有就填相应题型的中文,如single对应单选题）
-                "content"（题目的问题部分,选择题不包括选项）
-                "explanation"（题目的解析部分，只有当文档中没有给出对应题目的解析的时候你就可以自己根据题目的问题部分给出解析）
-                "difficulty"（题目的难度,必需是easy,medium,hard中的一个，如果没有就默认medium）
+                "type"： 题目的类型，只能是single,multiple,fill,answer,judge中的一个
+                "title"： 题目的标题，如果没有就填相应题型的中文,如single对应单选题
+                "content"： 题目的问题部分,选择题不包括选项
+                "explanation"： 题目的解析部分，只有当文档中没有给出对应题目的解析的时候你就可以自己根据题目的问题部分给出解析
+                "difficulty" 题目的难度,必需是easy,medium,hard中的一个，如果没有就默认medium
                 "options": [
                    {
-                     "optionKey": (选项，如"A")
-                     "optionContent": (选项的具体内容)
-                     "isCorrect": (该选项是否正确，只能的true或者false中的一个)
-                     "sortOrder": (选项的排列顺序)
+                     "optionKey":  选项，如"A"
+                     "optionContent": 选项的具体内容
+                     "isCorrect": 该选项是否正确，只能的true或者false中的一个
+                     "sortOrder": 选项的排列顺序
                    },
                    ......
                  ],
                  "answer": {
-                   "answerType": (正确答案的类型，只能选择option或者text中的一个)
-                   "correctAnswer": (标准答案的内容，text类型,如"AB","true","extends")
-                   "answerExplanation": (答案的解释，如"extends关键字用于实现类的继承"，只有当文档中没有
-                   给出为什么选择这个选项或者填相应内容的时候你可以根据正确答案给出解释)
+                   "answerType": 正确答案的类型，只能选择option或者text中的一个
+                   "correctAnswer": 标准答案的内容，text类型,如"AB","true","extends"
+                   "answerExplanation": 答案的解释，如"extends关键字用于实现类的继承"，只有当文档中没有给出为什么选择这个选项或者填相应内容的时候你可以根据正确答案给出解释
                  }
                },
                ......
                ]
-               这是具体例子，比如用户给出以下文本：
+              然后这是具体例子，比如用户给出以下文本：
                1.题目：一个书包的单价是 35 元，买 2 个这样的书包，一共需要花多少元？（ ）
                A. 70 B. 37 C. 60 D. 175
                  答案：A
@@ -125,5 +124,7 @@ public class AiJsonContext {
                  }
                ]
             """;
-    public static final String USER_TEXT="将文件的每道题目完整的提取出来,如果有答案解析也要提取出来";
+    public static final String USER_TEXT= """
+           你只需要将文档里的内容快速完整地提取出来，不需要做其它额外地工作
+           """;
 }

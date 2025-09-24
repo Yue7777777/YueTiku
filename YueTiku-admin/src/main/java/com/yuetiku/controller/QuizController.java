@@ -5,6 +5,7 @@ import com.yuetiku.dto.QuizAnswerRequest;
 import com.yuetiku.dto.QuizAnswerResponse;
 import com.yuetiku.dto.QuizHistoryResponse;
 import com.yuetiku.dto.QuizQuestionResponse;
+import com.yuetiku.dto.QuizQuestionsResponse;
 import com.yuetiku.service.QuizService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,19 +30,19 @@ public class QuizController {
      *
      * @param categoryId 分类ID（可选）
      * @param difficulty 难度（可选）
-     * @param count 题目数量（默认100）
+     * @param count 题目数量（默认20）
      * @return 题目信息
      */
     @GetMapping("/random")
-    public Result<QuizQuestionResponse> getRandomQuestion(
+    public Result<QuizQuestionsResponse> getRandomQuestion(
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String difficulty,
-            @RequestParam(defaultValue = "100") Integer count) {
+            @RequestParam(defaultValue = "20") Integer count) {
         log.info("随机获取题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
-        QuizQuestionResponse question = quizService.getRandomQuestion(categoryId, difficulty, count);
+        QuizQuestionsResponse questions = quizService.getRandomQuestion(categoryId, difficulty, count);
         
-        return Result.success("获取随机题目成功", question);
+        return Result.success("获取随机题目成功", questions);
     }
 
     /**
@@ -49,19 +50,19 @@ public class QuizController {
      *
      * @param categoryId 分类ID
      * @param difficulty 难度（可选）
-     * @param count 题目数量（默认100）
+     * @param count 题目数量（默认20）
      * @return 题目信息
      */
     @GetMapping("/category/{categoryId}")
-    public Result<QuizQuestionResponse> getQuestionByCategory(
+    public Result<QuizQuestionsResponse> getQuestionByCategory(
             @PathVariable Long categoryId,
             @RequestParam(required = false) String difficulty,
-            @RequestParam(defaultValue = "100") Integer count) {
+            @RequestParam(defaultValue = "20") Integer count) {
         log.info("按分类获取题目，分类ID: {}, 难度: {}, 数量: {}", categoryId, difficulty, count);
         
-        QuizQuestionResponse question = quizService.getQuestionByCategory(categoryId, difficulty, count);
+        QuizQuestionsResponse questions = quizService.getQuestionByCategory(categoryId, difficulty, count);
         
-        return Result.success("获取分类题目成功", question);
+        return Result.success("获取分类题目成功", questions);
     }
 
     /**

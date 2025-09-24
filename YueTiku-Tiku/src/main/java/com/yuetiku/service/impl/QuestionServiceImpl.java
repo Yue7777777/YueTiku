@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.yuetiku.context.BaseContext;
 import com.yuetiku.dto.QuestionDetailResponse;
+import com.yuetiku.dto.QuestionDetailWithJoinsDto;
 import com.yuetiku.dto.QuestionRequest;
 import com.yuetiku.entity.*;
 import com.yuetiku.mapper.*;
@@ -15,7 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -206,39 +210,62 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     @Override
     public QuestionDetailResponse getQuestionDetail(Long id) {
-        Question question = getById(id);
-        if (question == null) {
+        // 使用JOIN查询一次性获取所有相关数据
+        List<QuestionDetailWithJoinsDto> joinResults = baseMapper.getQuestionDetailWithJoins(id);
+        
+        if (joinResults.isEmpty()) {
             throw new RuntimeException("题目不存在");
         }
 
-        // 获取分类信息
-        Category category = categoryMapper.selectById(question.getCategoryId());
-
+        // 获取第一条记录作为题目基本信息
+        QuestionDetailWithJoinsDto firstRecord = joinResults.get(0);
+        
         // 构建响应对象
         QuestionDetailResponse response = new QuestionDetailResponse();
-        BeanUtils.copyProperties(question, response);
-        if (category != null) {
-            response.setCategoryName(category.getName());
-        }
+        response.setId(firstRecord.getId());
+        response.setCategoryId(firstRecord.getCategoryId());
+        response.setCategoryName(firstRecord.getCategoryName());
+        response.setType(firstRecord.getType());
+        response.setTitle(firstRecord.getTitle());
+        response.setContent(firstRecord.getContent());
+        response.setExplanation(firstRecord.getExplanation());
+        response.setDifficulty(firstRecord.getDifficulty());
+        response.setPoints(firstRecord.getPoints());
+        response.setSource(firstRecord.getSource());
+        response.setTags(firstRecord.getTags());
+        response.setStatus(firstRecord.getStatus());
+        response.setCreatedBy(firstRecord.getCreatedBy());
+        response.setCreatedAt(firstRecord.getCreatedAt());
+        response.setUpdatedAt(firstRecord.getUpdatedAt());
 
-        // 获取题目选项
-        LambdaQueryWrapper<QuestionOption> optionQueryWrapper = new LambdaQueryWrapper<>();
-        optionQueryWrapper.eq(QuestionOption::getQuestionId, id)
-                .orderByAsc(QuestionOption::getSortOrder, QuestionOption::getId);
-        List<QuestionOption> options = questionOptionMapper.selectList(optionQueryWrapper);
-        response.setOptions(options.stream().map(option -> {
-            QuestionDetailResponse.QuestionOptionResponse optionResponse = new QuestionDetailResponse.QuestionOptionResponse();
-            BeanUtils.copyProperties(option, optionResponse);
-            return optionResponse;
-        }).collect(Collectors.toList()));
+        // 处理选项信息
+        List<QuestionDetailResponse.QuestionOptionResponse> options = joinResults.stream()
+                .filter(record -> record.getOptionId() != null) // 过滤掉没有选项的记录
+                .map(record -> {
+                    QuestionDetailResponse.QuestionOptionResponse optionResponse = new QuestionDetailResponse.QuestionOptionResponse();
+                    optionResponse.setId(record.getOptionId());
+                    optionResponse.setOptionKey(record.getOptionKey());
+                    optionResponse.setOptionContent(record.getOptionContent());
+                    optionResponse.setIsCorrect(record.getIsCorrect());
+                    optionResponse.setSortOrder(record.getSortOrder());
+                    return optionResponse;
+                })
+                .distinct() // 去重，因为JOIN可能产生重复记录
+                .collect(Collectors.toList());
+        response.setOptions(options);
 
-        // 获取题目答案
-        LambdaQueryWrapper<QuestionAnswer> answerQueryWrapper = new LambdaQueryWrapper<>();
-        answerQueryWrapper.eq(QuestionAnswer::getQuestionId, id);
-        QuestionAnswer answer = questionAnswerMapper.selectOne(answerQueryWrapper);
-        if (answer != null) {
+        // 处理答案信息（取第一条有答案的记录）
+        QuestionDetailWithJoinsDto answerRecord = joinResults.stream()
+                .filter(record -> record.getAnswerId() != null)
+                .findFirst()
+                .orElse(null);
+                
+        if (answerRecord != null) {
             QuestionDetailResponse.QuestionAnswerResponse answerResponse = new QuestionDetailResponse.QuestionAnswerResponse();
-            BeanUtils.copyProperties(answer, answerResponse);
+            answerResponse.setId(answerRecord.getAnswerId());
+            answerResponse.setAnswerType(answerRecord.getAnswerType());
+            answerResponse.setCorrectAnswer(answerRecord.getCorrectAnswer());
+            answerResponse.setAnswerExplanation(answerRecord.getAnswerExplanation());
             response.setAnswer(answerResponse);
         }
 
@@ -331,5 +358,118 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
         queryWrapper.orderByDesc(Question::getCreatedAt);
         return page(pageParam, queryWrapper);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public QuestionService.BatchImportResult batchImportQuestions(List<QuestionRequest> questions) {
+        // 获取当前用户ID
+        Long currentUserId = BaseContext.getCurrentId();
+        if (currentUserId == null) {
+            throw new RuntimeException("用户未登录");
+        }
+
+        // 收集所有需要批量插入的数据
+        List<Question> questionsToInsert = new ArrayList<>();
+        List<QuestionOption> optionsToInsert = new ArrayList<>();
+        List<QuestionAnswer> answersToInsert = new ArrayList<>();
+        
+        // 用于记录题目ID映射关系
+        Map<String, Long> questionIdMap = new HashMap<>();
+
+        // 预处理：验证分类并准备数据
+        for (int i = 0; i < questions.size(); i++) {
+            QuestionRequest questionRequest = questions.get(i);
+            
+            // 检查分类是否存在且属于当前用户
+            LambdaQueryWrapper<Category> categoryQueryWrapper = new LambdaQueryWrapper<>();
+            categoryQueryWrapper.eq(Category::getId, questionRequest.getCategoryId())
+                    .eq(Category::getUserId, currentUserId);
+            Category category = categoryMapper.selectOne(categoryQueryWrapper);
+            if (category == null) {
+                log.warn("分类不存在，跳过题目: {}", questionRequest.getTitle());
+                continue;
+            }
+
+            // 准备题目数据
+            Question question = new Question();
+            BeanUtils.copyProperties(questionRequest, question);
+            question.setCreatedBy(currentUserId);
+            question.setCreatedAt(LocalDateTime.now());
+            question.setUpdatedAt(LocalDateTime.now());
+            questionsToInsert.add(question);
+            
+            questionIdMap.put("q_" + i, null); // 先占位，插入后更新
+        }
+
+        // 批量插入题目
+        if (!questionsToInsert.isEmpty()) {
+            boolean batchSaved = saveBatch(questionsToInsert);
+            if (!batchSaved) {
+                throw new RuntimeException("批量保存题目失败");
+            }
+            
+            // 更新题目ID映射
+            for (int i = 0; i < questionsToInsert.size(); i++) {
+                Question savedQuestion = questionsToInsert.get(i);
+                questionIdMap.put("q_" + i, savedQuestion.getId());
+            }
+            
+            log.info("批量插入题目成功，数量: {}", questionsToInsert.size());
+        }
+
+        // 批量处理选项和答案
+        for (int i = 0; i < questions.size(); i++) {
+            QuestionRequest questionRequest = questions.get(i);
+            Long questionId = questionIdMap.get("q_" + i);
+            
+            if (questionId == null) {
+                continue; // 跳过失败的题目
+            }
+
+            // 准备选项数据
+            if (questionRequest.getOptions() != null && !questionRequest.getOptions().isEmpty()) {
+                for (QuestionRequest.QuestionOptionRequest optionRequest : questionRequest.getOptions()) {
+                    QuestionOption option = new QuestionOption();
+                    option.setQuestionId(questionId);
+                    option.setOptionKey(optionRequest.getOptionKey());
+                    option.setOptionContent(optionRequest.getOptionContent());
+                    option.setIsCorrect(optionRequest.getIsCorrect());
+                    option.setSortOrder(optionRequest.getSortOrder());
+                    option.setCreatedAt(LocalDateTime.now());
+                    optionsToInsert.add(option);
+                }
+            }
+
+            // 准备答案数据
+            if (questionRequest.getAnswer() != null) {
+                QuestionAnswer answer = new QuestionAnswer();
+                answer.setQuestionId(questionId);
+                answer.setAnswerType(questionRequest.getAnswer().getAnswerType());
+                answer.setCorrectAnswer(questionRequest.getAnswer().getCorrectAnswer());
+                answer.setAnswerExplanation(questionRequest.getAnswer().getAnswerExplanation());
+                answer.setCreatedAt(LocalDateTime.now());
+                answersToInsert.add(answer);
+            }
+        }
+
+        // 批量插入选项
+        if (!optionsToInsert.isEmpty()) {
+            for (QuestionOption option : optionsToInsert) {
+                questionOptionMapper.insert(option);
+            }
+            log.info("批量插入选项成功，数量: {}", optionsToInsert.size());
+        }
+
+        // 批量插入答案
+        if (!answersToInsert.isEmpty()) {
+            for (QuestionAnswer answer : answersToInsert) {
+                questionAnswerMapper.insert(answer);
+            }
+            log.info("批量插入答案成功，数量: {}", answersToInsert.size());
+        }
+
+        log.info("批量导入完成，题目数量: {}", questionsToInsert.size());
+        return new QuestionService.BatchImportResult(questionsToInsert.size(), questionsToInsert.size(), 0);
     }
 }

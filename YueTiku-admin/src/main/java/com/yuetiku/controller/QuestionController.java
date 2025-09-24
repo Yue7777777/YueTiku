@@ -141,4 +141,22 @@ public class QuestionController {
         questionService.deleteQuestion(id);
         return Result.success("删除题目成功");
     }
+
+    /**
+     * 批量导入题目
+     *
+     * @param questions 题目请求列表
+     * @return 导入结果统计
+     */
+    @PostMapping("/batch-import")
+    public Result<QuestionService.BatchImportResult> batchImportQuestions(@Valid @RequestBody List<QuestionRequest> questions) {
+        log.info("批量导入题目，题目数量: {}", questions.size());
+        
+        QuestionService.BatchImportResult result = questionService.batchImportQuestions(questions);
+        
+        String message = String.format("批量导入完成，成功: %d, 失败: %d, 总数: %d", 
+                result.getSuccessCount(), result.getFailureCount(), result.getTotalCount());
+        
+        return Result.success(message, result);
+    }
 }

@@ -4,6 +4,7 @@ import com.yuetiku.dto.QuizAnswerRequest;
 import com.yuetiku.dto.QuizAnswerResponse;
 import com.yuetiku.dto.QuizHistoryResponse;
 import com.yuetiku.dto.QuizQuestionResponse;
+import com.yuetiku.dto.QuizQuestionsResponse;
 
 import java.util.List;
 
@@ -20,7 +21,7 @@ public interface QuizService {
      * @param count 题目数量
      * @return 题目信息
      */
-    QuizQuestionResponse getRandomQuestion(Long categoryId, String difficulty, Integer count);
+    QuizQuestionsResponse getRandomQuestion(Long categoryId, String difficulty, Integer count);
 
     /**
      * 按分类获取题目
@@ -30,7 +31,7 @@ public interface QuizService {
      * @param count 题目数量
      * @return 题目信息
      */
-    QuizQuestionResponse getQuestionByCategory(Long categoryId, String difficulty, Integer count);
+    QuizQuestionsResponse getQuestionByCategory(Long categoryId, String difficulty, Integer count);
 
     /**
      * 提交答案
