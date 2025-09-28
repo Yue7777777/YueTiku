@@ -138,7 +138,18 @@ public class QuizServiceImpl implements QuizService {
         QuizAnswerResponse response = new QuizAnswerResponse();
         response.setQuestionId(answerRequest.getQuestionId());
         response.setUserAnswer(answerRequest.getUserAnswer());
-        response.setCorrectAnswer(correctAnswer.getCorrectAnswer());
+        
+        // 对于判断题，返回选项键值而不是文本，保持与前端一致
+        String correctAnswerForResponse = correctAnswer.getCorrectAnswer();
+        if ("judge".equals(question.getType())) {
+            if ("true".equalsIgnoreCase(correctAnswerForResponse.trim())) {
+                correctAnswerForResponse = "A";
+            } else if ("false".equalsIgnoreCase(correctAnswerForResponse.trim())) {
+                correctAnswerForResponse = "B";
+            }
+        }
+        response.setCorrectAnswer(correctAnswerForResponse);
+        
         response.setIsCorrect(isCorrect);
         response.setScore(score);
         response.setExplanation(question.getExplanation());
@@ -397,8 +408,20 @@ public class QuizServiceImpl implements QuizService {
         
         switch (questionType) {
             case "single":
-            case "judge":
                 return userAnswer.trim().equalsIgnoreCase(correctAnswerStr.trim());
+            case "judge":
+                // 判断题特殊处理：数据库统一存储true/false，前端提交A/B
+                String userAnswerTrimmed = userAnswer.trim();
+                String correctAnswerTrimmed = correctAnswerStr.trim();
+                
+                // 将用户答案A/B转换为true/false
+                if ("A".equalsIgnoreCase(userAnswerTrimmed)) {
+                    userAnswerTrimmed = "true";
+                } else if ("B".equalsIgnoreCase(userAnswerTrimmed)) {
+                    userAnswerTrimmed = "false";
+                }
+                
+                return userAnswerTrimmed.equalsIgnoreCase(correctAnswerTrimmed);
             case "multiple":
                 // 多选题需要比较选项集合
                 return compareMultipleChoice(userAnswer, correctAnswerStr);
