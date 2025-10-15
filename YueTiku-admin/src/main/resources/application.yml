@@ -15,6 +15,14 @@ spring:
     username: ${database.username}    # 数据库用户名
     password: ${database.password}    # 数据库密码
 
+
+    hikari:
+      connection-timeout: 60000
+      idle-timeout: 60000
+      max-lifetime: 1800000
+      max-pool-size: 10
+      min-idle: 5
+
     #ai相关配置
   ai:
     dashscope:
@@ -40,7 +48,7 @@ mybatis-plus:
     auto-mapping-behavior: partial
     auto-mapping-unknown-column-behavior: none
     default-executor-type: simple
-    default-statement-timeout: 25
+    default-statement-timeout: 60
     default-fetch-size: 100
     safe-row-bounds-enabled: false
     local-cache-scope: session

@@ -54,36 +54,8 @@
 
     <!-- 获取时间线统计 -->
     <select id="getTimelineStatistics" resultType="com.yuetiku.entity.StatisticsOverview">
-        WITH RECURSIVE consecutive_days AS (
-            SELECT 
-                DATE(answer_time) as answer_date,
-                1 as consecutive_count
-            FROM user_answers
-            WHERE user_id = #{userId}
-            AND DATE(answer_time) = (
-                SELECT MAX(DATE(answer_time)) 
-                FROM user_answers 
-                WHERE user_id = #{userId}
-            )
-            
-            UNION ALL
-            
-            SELECT 
-                DATE(ua.answer_time) as answer_date,
-                cd.consecutive_count + 1
-            FROM user_answers ua
-            JOIN consecutive_days cd ON DATE(ua.answer_time) = DATE_SUB(cd.answer_date, INTERVAL 1 DAY)
-            WHERE ua.user_id = #{userId}
-        ),
-        consecutive_days_dedup AS (
-            SELECT 
-                answer_date,
-                MAX(consecutive_count) as consecutive_count
-            FROM consecutive_days
-            GROUP BY answer_date
-        ),
-        timeline_data AS (
-            SELECT 
+        WITH timeline_data AS (
+            SELECT
                 DATE(ua.answer_time) as answer_date,
                 COUNT(*) as total_questions,
                 SUM(CASE WHEN ua.is_correct = 1 THEN 1 ELSE 0 END) as correct_answers,
@@ -92,15 +64,46 @@
                 COUNT(*) * 2 as study_minutes
             FROM user_answers ua
             WHERE ua.user_id = #{userId}
-            AND DATE(ua.answer_time) BETWEEN #{startDate} AND #{endDate}
+              AND DATE(ua.answer_time) BETWEEN #{startDate} AND #{endDate}
             GROUP BY DATE(ua.answer_time)
+        ),
+        consecutive_calc AS (
+            SELECT 
+                *,
+                ROW_NUMBER() OVER (ORDER BY answer_date DESC) as rn,
+                DATE_SUB(answer_date, INTERVAL ROW_NUMBER() OVER (ORDER BY answer_date DESC) - 1 DAY) as date_group
+            FROM timeline_data
+        ),
+        consecutive_groups AS (
+            SELECT 
+                *,
+                COUNT(*) OVER (PARTITION BY date_group ORDER BY answer_date DESC ROWS UNBOUNDED PRECEDING) as consecutive_days_calc
+            FROM consecutive_calc
+        ),
+        max_consecutive AS (
+            SELECT 
+                answer_date,
+                total_questions,
+                correct_answers,
+                total_score,
+                accuracy_rate,
+                study_minutes,
+                CASE 
+                    WHEN rn = 1 THEN consecutive_days_calc
+                    ELSE 0 
+                END as consecutive_days
+            FROM consecutive_groups
         )
         SELECT 
-            td.*,
-            COALESCE(cdd.consecutive_count, 0) as consecutive_days
-        FROM timeline_data td
-        LEFT JOIN consecutive_days_dedup cdd ON td.answer_date = cdd.answer_date
-        ORDER BY td.answer_date DESC
+            answer_date,
+            total_questions,
+            correct_answers,
+            total_score,
+            accuracy_rate,
+            study_minutes,
+            consecutive_days
+        FROM max_consecutive
+        ORDER BY answer_date DESC
     </select>
 
 
@@ -134,7 +137,8 @@
         WITH RECURSIVE consecutive_days AS (
             SELECT 
                 DATE(answer_time) as answer_date,
-                1 as consecutive_count
+                1 as consecutive_count,
+                1 as level_count
             FROM user_answers
             WHERE user_id = #{userId}
             AND DATE(answer_time) = CURDATE()
@@ -143,10 +147,13 @@
             
             SELECT 
                 DATE(ua.answer_time) as answer_date,
-                cd.consecutive_count + 1
+                cd.consecutive_count + 1,
+                cd.level_count + 1
             FROM user_answers ua
             JOIN consecutive_days cd ON DATE(ua.answer_time) = DATE_SUB(cd.answer_date, INTERVAL 1 DAY)
             WHERE ua.user_id = #{userId}
+            AND cd.level_count &lt;= 90
+            AND DATE(ua.answer_time) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
         )
         SELECT COALESCE(MAX(consecutive_count), 0)
         FROM consecutive_days
