@@ -21,7 +21,7 @@ public class AiJsonContext {
                  ],
                  "answer": {
                    "answerType": 正确答案的类型，只能选择option或者text中的一个
-                   "correctAnswer": 标准答案的内容，text类型,如"AB","true","extends"
+                   "correctAnswer": 标准答案的内容，text类型,如"AB","true","extends",注意如果是多选选项之间不要有任何符合或空格，如"AB"不能是"A、B",且单选或多选答案一定要大写
                    "answerExplanation": 答案的解释，如"extends关键字用于实现类的继承"，只有当文档中没有给出为什么选择这个选项或者填相应内容的时候你可以根据正确答案给出解释
                  }
                },
